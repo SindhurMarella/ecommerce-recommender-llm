@@ -1,0 +1,13 @@
+# Python environment files
+venv/
+__pycache__/
+*.pyc
+*.swp
+
+# Sensitive files
+.env
+
+# Data and log files
+*.csv
+*.json
+logs/
