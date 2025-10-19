@@ -5,10 +5,14 @@ import os
 from typing import List
 from google import genai
 from dotenv import load_dotenv
-
+import sys
+# Add parent directory to path to allow imports from app/
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 # Import the necessary Pydantic models and data loader
 from app.data_loader import load_data
 from app.models import RecommendedProduct
+
+
 
 load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -28,7 +32,7 @@ def generate_explanation(recommended_product: dict, user_id: str) -> str:
         Uses Gemini to generate a pesonalized explanation for the recommendation.
     """
     if GENAI_CLIENT is None:
-        return "Explanation service is unavailable."
+        return "The AI Explanation service is temporarily unavailable. Check your API key."
     
     # 1. Get User Purchase/Interaction History Summary
     user_interactions = INTERACTIONS_DF[INTERACTIONS_DF['user_id'] == user_id]
@@ -53,6 +57,7 @@ def generate_explanation(recommended_product: dict, user_id: str) -> str:
         1. Write a single paragraph (Max 3 sentences).
         2. Focus on connecting the product's category and description dorectly to the user's past interactions.
         3. Be friendly and confident. Do not mention "Gemini", "AI", or "algorithm".
+        4. Start the explanation directly, e.g. , "Since you recently..." or "Because you love..."
     """
 
     #4. Call the Gemini API

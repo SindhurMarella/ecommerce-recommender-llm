@@ -5,12 +5,24 @@ from app.recommender import get_content_based_recommendations, USERS_DF
 from app.models import RecommendedProduct
 from typing import List
 
+from fastapi.middleware.cors import CORSMiddleware
+
+
+
 # Initialize the FastAPI application
 # Include a title and description for the auto-generated documentation (/docs)
 app = FastAPI(
     title="E-commerce Recommender API",
     description="Provides product recommendations and LLM-generated explanations (Placeholder currently active).",
     version="1.0.0"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 @app.get("/", tags=["Health Check"])

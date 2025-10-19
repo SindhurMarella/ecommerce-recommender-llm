@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>E-commerce Product Recommender</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f4f6f9;
+        }
+        /* Custom scrollbar for output area */
+        .scrollable-area::-webkit-scrollbar {
+            width: 8px;
+        }
+        .scrollable-area::-webkit-scrollbar-track {
+            background: #e2e8f0;
+        }
+        .scrollable-area::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 sm:p-8">
+    <div class="max-w-4xl mx-auto">
+        <header class="text-center py-6 mb-8 bg-white shadow-lg rounded-xl">
+            <h1 class="text-3xl sm:text-4xl font-extrabold text-indigo-700">
+                🛒 E-Commerce Product Recommendations
+            </h1>
+            <p class="text-gray-600 mt-2">Get Intelligent Product Recommendations and Explanations</p>
+        </header>
+
+        <!-- Input Section -->
+        <div class="bg-white p-6 shadow-xl rounded-xl mb-8">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Find Recommendations</h2>
+            <div class="flex flex-col sm:flex-row gap-4">
+                <input 
+                    type="text" 
+                    id="userIdInput" 
+                    placeholder="Enter User ID (e.g., U002)" 
+                    value="U002"
+                    class="flex-grow p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-gray-700"
+                />
+                <button 
+                    id="fetchButton" 
+                    class="bg-indigo-600 text-white p-3 rounded-lg font-bold shadow-md hover:bg-indigo-700 transition duration-150 ease-in-out disabled:bg-indigo-400"
+                >
+                    Get Recommendations
+                </button>
+            </div>
+            <p id="statusMessage" class="mt-3 text-sm text-center text-gray-500"></p>
+        </div>
+
+        <!-- Output Section -->
+        <div class="bg-white p-6 shadow-xl rounded-xl">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Recommended Products</h2>
+            <div id="recommendationsContainer" class="space-y-6 scrollable-area max-h-96 overflow-y-auto p-2">
+                <!-- Recommendations will be injected here -->
+                <p class="text-gray-500 text-center">Enter a User ID and click "Get Recommendations" to begin.</p>
+            </div>
+        </div>
+
+        <!-- Footer for Documentation Reference -->
+        <footer class="text-center mt-8 text-gray-500 text-sm">
+            <p>Evaluation Focus: Recommendation Accuracy, LLM Explanation Quality, Code Design.</p>
+        </footer>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://127.0.0.1:8000';
+        const container = document.getElementById('recommendationsContainer');
+        const statusMessage = document.getElementById('statusMessage');
+        const fetchButton = document.getElementById('fetchButton');
+
+        function setStatus(message, isError = false) {
+            statusMessage.textContent = message;
+            statusMessage.className = `mt-3 text-sm text-center ${isError ? 'text-red-600 font-semibold' : 'text-indigo-600 font-semibold'}`;
+        }
+
+        async function fetchRecommendations() {
+            const userId = document.getElementById('userIdInput').value.trim();
+            if (!userId) {
+                setStatus("Please enter a User ID.", true);
+                return;
+            }
+
+            container.innerHTML = `<div class="text-center p-4 text-indigo-600 font-semibold">
+                                    <div class="animate-spin inline-block w-6 h-6 border-4 border-t-indigo-500 border-r-indigo-500 border-b-indigo-200 border-l-indigo-200 rounded-full"></div>
+                                    <p class="mt-2">Loading recommendations and generating AI explanations...</p>
+                                   </div>`;
+            fetchButton.disabled = true;
+            setStatus(`Fetching data for User: ${userId}...`);
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/recommendations/${userId}`);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    // Handle HTTP error statuses (e.g., 404 Not Found, 500 Internal Error)
+                    const errorDetail = data.detail || `Server returned status ${response.status}.`;
+                    throw new Error(`API Error: ${errorDetail}`);
+                }
+
+                if (data.length === 0) {
+                    container.innerHTML = `<div class="p-6 text-center text-gray-600 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                                            <p class="font-semibold">No New Recommendations Found</p>
+                                            <p class="text-sm mt-1">This user may have already purchased all relevant items based on the content matching logic.</p>
+                                           </div>`;
+                    setStatus(`Successfully checked for User: ${userId}.`, false);
+                } else {
+                    renderRecommendations(data);
+                    setStatus(`Successfully generated ${data.length} recommendations and explanations.`, false);
+                }
+
+            } catch (error) {
+                console.error("Fetch error:", error);
+                const displayMessage = error.message || "Could not connect to the FastAPI backend. Is the server running?";
+                container.innerHTML = `<div class="p-4 text-red-600 bg-red-50 border border-red-200 rounded-lg">
+                                        <p class="font-bold">Error:</p>
+                                        <p class="text-sm">${displayMessage}</p>
+                                        <p class="text-xs mt-2">Ensure your 'uvicorn app.main:app --reload' server is running.</p>
+                                       </div>`;
+                setStatus("Failed to load recommendations.", true);
+            } finally {
+                fetchButton.disabled = false;
+            }
+        }
+
+        function renderRecommendations(recommendations) {
+            container.innerHTML = ''; // Clear loading message
+
+            recommendations.forEach((item, index) => {
+                const card = document.createElement('div');
+                card.className = 'bg-gray-50 p-5 rounded-xl shadow-lg border border-gray-200 transition transform hover:shadow-xl hover:scale-[1.01]';
+                
+                const formattedPrice = new Intl.NumberFormat('en-US', {
+                    style: 'currency',
+                    currency: 'USD',
+                }).format(item.price);
+
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-3 border-b pb-2">
+                        <h3 class="text-xl font-bold text-gray-900">${item.name}</h3>
+                        <span class="bg-indigo-100 text-indigo-800 text-xs font-medium px-3 py-1 rounded-full">${item.category}</span>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <p class="text-sm text-gray-500">${item.description}</p>
+                        <p class="text-lg font-extrabold text-green-600 mt-2">${formattedPrice}</p>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-lg border-2 border-dashed border-indigo-200">
+                        <h4 class="text-md font-semibold text-indigo-700 mb-2">🧠 Why This Product? (AI Explanation)</h4>
+                        <p class="text-gray-700 italic text-sm">${item.explanation}</p>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // Attach event listener to the button
+        document.getElementById('fetchButton').addEventListener('click', fetchRecommendations);
+    </script>
+</body>
+</html>
