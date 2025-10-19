@@ -1,62 +1,62 @@
 # app/data_loader.py
 
-import pandas as pd
 import os
-from typing import Tuple
+import pandas as pd
+from pymongo import MongoClient
+from dotenv import load_dotenv
 
-# Define the path to the data directory (relative to project root)
-DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'data')
+# --- Configuration ---
+load_dotenv()
+MDB_URI = os.getenv("MDB_URI")
+DB_NAME = "ecommerce_recommender"
 
-# Explicit column definitions for robustness against manual/Excel formatting issues
-INTERACTIONS_COLUMNS = ['interaction_id', 'user_id', 'product_id', 'type', 'timestamp']
-PRODUCTS_COLUMNS = ['product_id', 'name', 'category', 'price', 'description']
-USERS_COLUMNS = ['user_id', 'name', 'created_at']
-
-def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def load_data():
     """
-    Loads all mock data into Pandas DataFrames.
-    
-    Uses robust methods (header=None, sep=',') to handle common CSV formatting errors
-    and includes debugging prints to identify which file is failing.
+    Connects to the MongoDB database and loads the products, users, and 
+    interactions collections into pandas DataFrames.
     """
+    if not MDB_URI:
+        print("FATAL ERROR: MDB_URI not found. Please set it in your .env file.")
+        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+
+    client = None  # Initialize client to None
     try:
-        # --- 1. Load Products Data ---
-        print("DEBUG: Attempting to load products.csv...") 
-        products = pd.read_csv(os.path.join(DATA_DIR, 'products.csv'), header=None, sep=',')
-        products.columns = PRODUCTS_COLUMNS
-        products.columns = products.columns.str.strip() 
-
-        # --- 2. Load Users Data ---
-        print("DEBUG: Attempting to load users.csv...") 
-        users = pd.read_csv(os.path.join(DATA_DIR, 'users.csv'), header=None, sep=',')
-        users.columns = USERS_COLUMNS
-        users.columns = users.columns.str.strip()
+        print("INFO: Connecting to MongoDB...")
+        client = MongoClient(MDB_URI)
+        db = client[DB_NAME]
         
-        # --- 3. Load Interactions Data ---
-        print("DEBUG: Attempting to load interactions.csv...") 
-        interactions = pd.read_csv(
-            os.path.join(DATA_DIR, 'interactions.csv'), 
-            header=None,
-            sep=',' 
-        )
-        interactions.columns = INTERACTIONS_COLUMNS
-        interactions.columns = interactions.columns.str.strip()
-
-        # --- 4. Post-Processing ---
-        # Convert 'timestamp' column to datetime objects
-        interactions['timestamp'] = pd.to_datetime(interactions['timestamp'], errors='coerce')
-        interactions = interactions.dropna(subset=['timestamp'])
-
-        # Sort interactions by time (most recent first)
-        interactions = interactions.sort_values(by='timestamp', ascending=False)
+        # Load collections into pandas DataFrames
+        print("INFO: Loading 'products' collection...")
+        products_df = pd.DataFrame(list(db.products.find()))
         
-        print("DEBUG: Data loaded successfully.")
-        return products, users, interactions
+        print("INFO: Loading 'users' collection...")
+        users_df = pd.DataFrame(list(db.users.find()))
+        
+        print("INFO: Loading 'interactions' collection...")
+        interactions_df = pd.DataFrame(list(db.interactions.find()))
 
-    except FileNotFoundError as e:
-        print(f"Error loading data: {e}. Check your 'data' folder and file names.")
-        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+        # --- Data Cleaning & Preparation ---
+        # Drop the default MongoDB '_id' column as it's not needed
+        if '_id' in products_df.columns:
+            products_df.drop('_id', axis=1, inplace=True)
+        if '_id' in users_df.columns:
+            users_df.drop('_id', axis=1, inplace=True)
+        if '_id' in interactions_df.columns:
+            interactions_df.drop('_id', axis=1, inplace=True)
+
+        # Convert timestamp to datetime objects for proper sorting
+        if not interactions_df.empty:
+            interactions_df['timestamp'] = pd.to_datetime(interactions_df['timestamp'])
+
+        print("INFO: Data loaded and prepared successfully.")
+        
+        return products_df, users_df, interactions_df
+
     except Exception as e:
-        # This will now clearly tell us where the 'No columns to parse' error happened.
-        print(f"An unexpected error occurred during data loading: {e}. Check the last DEBUG print to identify the failing file.")
+        print(f"FATAL ERROR: Could not load data from MongoDB: {e}")
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+    
+    finally:
+        if client:
+            client.close()
+            print("INFO: MongoDB connection closed.")

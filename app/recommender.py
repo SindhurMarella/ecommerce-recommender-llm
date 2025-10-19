@@ -83,7 +83,7 @@ def get_content_based_recommendations(user_id: str, top_n: int = 3) -> List[Reco
     global PRODUCTS_DF, USERS_DF, INTERACTIONS_DF
     
     # Check if data loading was successful
-    if PRODUCTS_DF.empty:
+    if PRODUCTS_DF.empty or INTERACTIONS_DF.empty:
         return [] 
 
     # --- 1. CORE RECOMMENDATION LOGIC ---
@@ -95,24 +95,35 @@ def get_content_based_recommendations(user_id: str, top_n: int = 3) -> List[Reco
     # Decide which product set to recommend
     if user_purchases.empty:
         # Fallback: Recommend the top 3 overall products if the user has no purchase history
+        print(f"DEBUG: User {user_id} has no purchase history. Recommending popular items.")
         recommended_products_df = PRODUCTS_DF.head(top_n)
         target_category = "General Popularity"
         
     else:
-        # 1. Find the most recently purchased product's category
+        # 1. Sort purchases to find the most recent one
+        user_purchases = user_purchases.sort_values(by='timestamp', ascending=False)
+        # 2. Find the most recently purchased product's category
         recent_product_id = user_purchases['product_id'].iloc[0]
-        recent_product_row = PRODUCTS_DF[PRODUCTS_DF['product_id'] == recent_product_id].iloc[0]
-        target_category = recent_product_row['category']
+        recent_product_row = PRODUCTS_DF[PRODUCTS_DF['product_id'] == recent_product_id]
+        #target_category = recent_product_row['category']
         
-        # 2. Find products in the same category the user hasn't purchased
-        recommended_products_df = PRODUCTS_DF[
-            (PRODUCTS_DF['category'] == target_category) & 
-            (~PRODUCTS_DF['product_id'].isin(user_purchases['product_id']))
-        ]
-        
-        # 3. Take the top N 
-        recommended_products_df = recommended_products_df.head(top_n)
+        # Check if the product from the interactions exists in the product dataframe
+        if recent_product_row.empty:
+            print(f"WARN: Product {recent_product_id} from interactions not found in products. Reverting to fallback.")
+            recommended_products_df = PRODUCTS_DF.head(top_n)
+        else:
+            target_category = recent_product_row['category'].iloc[0]
+            print(f"DEBUG: User {user_id}'s last purchase category: {target_category}")
 
+            # 3. Find other products in the same category that the user has not purchased
+            purchased_ids = user_purchases['product_id'].unique()
+            recommended_products_df = PRODUCTS_DF[
+                (PRODUCTS_DF['category'] == target_category) &
+                (~PRODUCTS_DF['product_id'].isin(purchased_ids))
+            ]
+
+            # 4. Take the top N from the filtered list
+            recommended_products_df = recommended_products_df.head(top_n)
     
     # --- 2. LLM Explanation Generation and Final Formatting ---
     final_recommendations = []
