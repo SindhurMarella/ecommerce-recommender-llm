@@ -144,3 +144,23 @@ def get_content_based_recommendations(user_id: str, top_n: int = 3) -> List[Reco
         final_recommendations.append(RecommendedProduct(**recommended_product_data))
         
     return final_recommendations
+
+def generate_social_proof(product_id: str, interactions_df: pd.DataFrame) -> str:
+    """
+    Generate social proof string based on purchase data for a product.
+    """
+    if interactions_df is None or interactions_df.empty:
+        return None
+    
+    # Filter for purchases of this specific product
+    product_purchases = interactions_df[
+        (interactions_df['product_id'] == product_id) &
+        (interactions_df['type'] == 'purchase')
+    ]
+
+    purchase_count = len(product_purchases)
+
+    if purchase_count > 2:
+        return f"Popular! {purchase_count} users have purchased this product."
+    
+    return None # Return nothing if not popular enough

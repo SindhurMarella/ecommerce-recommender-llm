@@ -1,7 +1,7 @@
 # app/models.py
 
 from pydantic import BaseModel
-from typing import Literal
+from typing import Literal, Optional
 from datetime import datetime
 
 # --- Internal Data Models (Used by data_loader) ---
@@ -28,3 +28,4 @@ class Interaction(BaseModel):
 class RecommendedProduct(Product):
     """Extends the Product model to include the LLM-generated explanation."""
     explanation: str
+    social_proof: Optional[str] = None
