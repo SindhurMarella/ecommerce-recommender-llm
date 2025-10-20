@@ -1,15 +1,14 @@
-# app/addvanced_recommender.py
+# app/advanced_recommender.py
 
 import pandas as pd
 from surprise import Dataset, Reader, SVD
-from surprise.model_selection import train_test_split
 
 # This global variable will hold our trained model in memory
 COLLAB_MODEL = None
 
 def train_collaborative_model(interactions_df: pd.DataFrame):
     """
-    Trains as SVD collaborative filtering model on the user-item interaction data.
+    Trains an SVD collaborative filtering model on the user-item interaction data.
     """
     global COLLAB_MODEL
     print("INFO: Starting Collaborative filtering model training...")
@@ -18,20 +17,23 @@ def train_collaborative_model(interactions_df: pd.DataFrame):
     interaction_strength = {
         'view': 1.0,
         'add_to_cart': 2.0,
-        'purchased': 3.0,
+        'purchase': 3.0, # <-- BUG FIX: Changed 'purchased' to 'purchase' to match data
     }
 
-    # Create a ratings column based on interaction type
+    # Create a 'rating' column based on interaction type
     interactions_df['rating'] = interactions_df['type'].map(interaction_strength)
+    
+    # Drop any interactions that didn't map to a rating (if any)
+    rated_interactions = interactions_df.dropna(subset=['rating'])
 
     # The 'surprise' library needs data in a specific format
-    reader = Reader(rating_scale=(1,3))
-    data = Dataset.load_from_df(interactions_df[['user_id', 'product_id', 'rating']], reader)
+    reader = Reader(rating_scale=(1, 3))
+    data = Dataset.load_from_df(rated_interactions[['user_id', 'product_id', 'rating']], reader)
 
     # Build a training set from the entire dataset
     trainset = data.build_full_trainset()
 
-    # Use the SVD Algorithm (a classic and powerful collaborative filtering method)
+    # Use the SVD Algorithm
     algo = SVD()
     algo.fit(trainset)
 
@@ -44,13 +46,13 @@ def get_collaborative_filtering_recommendations(user_id: str, products_df: pd.Da
     Generates product recommendations for a user using the trained collaborative model. 
     """
     if COLLAB_MODEL is None:
-        print("WARN: Collaborative model not trained yet. Skipping...")
+        print("WARN: Collaborative model not trained yet. Skipping.")
         return []
     
     # Get a list of all the product IDs the user has already interacted with
     interacted_product_ids = interactions_df[interactions_df['user_id'] == user_id]['product_id'].unique()
 
-    # Get a list of all the product IDs they have not interacted with
+    # Get a list of all the product IDs they have NOT interacted with
     all_product_ids = products_df['product_id'].unique()
     unseen_product_ids = [pid for pid in all_product_ids if pid not in interacted_product_ids]
 
